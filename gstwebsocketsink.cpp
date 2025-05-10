@@ -161,13 +161,13 @@ static bool ws_initialise(WSContext *ws_context, GstWebSocketSink *sink)
 
     try
     {
-        // Initialize the Asio transport policy
         ws_context->ws_endpoint.init_asio();
 
+        // Enable to see more logs
         // ws_context->ws_endpoint.clear_access_channels(websocketpp::log::alevel::all);
         // ws_context->ws_endpoint.set_access_channels(websocketpp::log::alevel::access_core);
         // ws_context->ws_endpoint.set_access_channels(websocketpp::log::alevel::app);
-        
+
         ws_context->ws_endpoint.set_access_channels(websocketpp::log::alevel::none);  // No access logs
         ws_context->ws_endpoint.set_error_channels(websocketpp::log::elevel::none);   // No error logs
 
@@ -341,6 +341,12 @@ static void gst_websocket_sink_finalize(GObject *object)
     }
     g_free(sink->host);
     g_rec_mutex_clear(&sink->ws_task_lock);
+
+    if(sink->ws_context)
+    {
+        delete sink->ws_context;
+    }
+    sink->ws_context = NULL;
 
     G_OBJECT_CLASS(gst_websocket_sink_parent_class)->finalize(object);
 }

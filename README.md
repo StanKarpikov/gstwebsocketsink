@@ -24,6 +24,9 @@ cmake --build .
 
 # If you want to install it system-wide
 sudo make install
+
+# Or if you want to use the library from the build folder
+export GST_PLUGIN_PATH="$(pwd)"
 ```
 
 ## Example
@@ -31,5 +34,9 @@ sudo make install
 Open `example/web_client.html` in browser and run the pipeline:
 
 ```bash
-gst-launch-1.0 videotestsrc ! websocketsink host=127.0.0.1 port=8080
+GST_DEBUG="websocketsink:4" gst-launch-1.0 videotestsrc pattern=ball ! jpegenc ! websocketsink host=127.0.0.1 port=8080
 ```
+
+## Known Issues
+
+It may fault with error: "Websocket initialisation error: Underlying Transport Error" and the "address already in use". Probably it is not closed correctly in some situatons.

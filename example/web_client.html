@@ -16,7 +16,6 @@
             ws.binaryType = 'arraybuffer';
             
             ws.onmessage = function(event) {
-                console.info("Frame received");
                 const blob = new Blob([event.data], {type: 'image/jpeg'});
                 const url = URL.createObjectURL(blob);
                 image.src = url;
