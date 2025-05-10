@@ -49,7 +49,7 @@ enum
  ******************************************************************************/
 
 static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
-                              void *user, void *in, size_t len);
+                       void *user, void *in, size_t len);
 
 /******************************************************************************
  * PRIVATE DATA AND TYPES
@@ -129,12 +129,12 @@ static void ws_service_thread(GstWebSocketSink *element)
     }
 
     GST_INFO("Starting Websocket thread");
-    while (gst_task_get_state (element->ws_task) == GST_TASK_STARTED) 
+    while (gst_task_get_state(element->ws_task) == GST_TASK_STARTED)
     {
         g_rec_mutex_lock(&element->ws_task_lock);
-        if(element->ws_context.context)
+        if (element->ws_context.context)
         {
-          lws_service(element->ws_context.context, 100);
+            lws_service(element->ws_context.context, 100);
         }
         g_rec_mutex_unlock(&element->ws_task_lock);
     }
@@ -200,21 +200,23 @@ static bool ws_initialise(WSContext *ws_context, struct lws_context_creation_inf
 }
 
 static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
-                              void *user, void *in, size_t len)
+                       void *user, void *in, size_t len)
 {
     GstWebSocketSinkClient *client = user;
     switch (reason)
     {
         case LWS_CALLBACK_ESTABLISHED: {
             struct lws_context *context = lws_get_context(wsi);
-            if(!context){
-              GST_ERROR("Failed to get context, lws_get_context returned NULL");
-              break;
+            if (!context)
+            {
+                GST_ERROR("Failed to get context, lws_get_context returned NULL");
+                break;
             }
             GstWebSocketSink *sink = lws_context_user(context);
-            if(!sink){
-              GST_ERROR("Failed to get sink, lws_context_user returned NULL");
-              break;
+            if (!sink)
+            {
+                GST_ERROR("Failed to get sink, lws_context_user returned NULL");
+                break;
             }
 
             client = user;
@@ -237,9 +239,10 @@ static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
             }
 
             GstWebSocketSink *sink = client->sink;
-            if(!sink){
-              GST_ERROR("Failed to get sink, client->sink is NULL");
-              break;
+            if (!sink)
+            {
+                GST_ERROR("Failed to get sink, client->sink is NULL");
+                break;
             }
             g_mutex_lock(&sink->ws_context.clients_lock);
             sink->ws_context.clients = g_list_remove(sink->ws_context.clients, client);
@@ -366,7 +369,8 @@ static void gst_websocket_sink_finalize(GObject *object)
     g_free(sink->host);
     g_mutex_clear(&sink->ws_context.clients_lock);
 
-    if (sink->ws_task) {
+    if (sink->ws_task)
+    {
         gst_task_stop(sink->ws_task);
         gst_object_unref(sink->ws_task);
     }
@@ -375,15 +379,17 @@ static void gst_websocket_sink_finalize(GObject *object)
     G_OBJECT_CLASS(gst_websocket_sink_parent_class)->finalize(object);
 }
 
-static GstStateChangeReturn 
-gst_websocket_sink_change_state(GstElement *element, GstStateChange transition) 
+static GstStateChangeReturn
+gst_websocket_sink_change_state(GstElement *element, GstStateChange transition)
 {
     GstWebSocketSink *sink = GST_WEBSOCKET_SINK(element);
     GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 
-    switch (transition) {
+    switch (transition)
+    {
         case GST_STATE_CHANGE_READY_TO_PAUSED:
-            if (!gst_task_start(sink->ws_task)) {
+            if (!gst_task_start(sink->ws_task))
+            {
                 GST_ERROR_OBJECT(sink, "Failed to start Websocket task");
                 return GST_STATE_CHANGE_FAILURE;
             }
@@ -410,9 +416,11 @@ gst_websocket_sink_change_state(GstElement *element, GstStateChange transition)
 
     ret = GST_ELEMENT_CLASS(gst_websocket_sink_parent_class)->change_state(element, transition);
 
-    if (ret == GST_STATE_CHANGE_FAILURE) {
+    if (ret == GST_STATE_CHANGE_FAILURE)
+    {
         /* Ensure task is stopped if state change failed */
-        if (transition == GST_STATE_CHANGE_READY_TO_PAUSED) {
+        if (transition == GST_STATE_CHANGE_READY_TO_PAUSED)
+        {
             GST_INFO("Attempting to stop the Websocket thread...");
             lws_cancel_service(sink->ws_context.context);
             gst_task_stop(sink->ws_task);
@@ -470,8 +478,8 @@ static void gst_websocket_sink_init(GstWebSocketSink *sink)
     g_mutex_init(&sink->ws_context.clients_lock);
 
     g_rec_mutex_init(&sink->ws_task_lock);
-    sink->ws_task = gst_task_new ((GstTaskFunction)ws_service_thread, sink, NULL);
-    gst_task_set_lock (sink->ws_task, &sink->ws_task_lock);
+    sink->ws_task = gst_task_new((GstTaskFunction)ws_service_thread, sink, NULL);
+    gst_task_set_lock(sink->ws_task, &sink->ws_task_lock);
 }
 
 static gboolean plugin_init(GstPlugin *plugin)

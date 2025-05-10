@@ -16,6 +16,7 @@
             ws.binaryType = 'arraybuffer';
             
             ws.onmessage = function(event) {
+                console.info("Frame received");
                 const blob = new Blob([event.data], {type: 'video/webm'});
                 const url = URL.createObjectURL(blob);
                 video.src = url;
