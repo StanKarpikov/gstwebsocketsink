@@ -4,6 +4,8 @@ GStreamer sink element that sends data over WebSocket.
 
 It accepts any data format (video, audio, or raw data). It was designed to send binary data such as JSON, Protobuf, or Flatbuffers, but should also work with other formats.
 
+It can be used to stream MJPEG to a website, see the `example` folder.
+
 ## Dependencies
 
 Make sure you have all required dependencies installed (Example for Linux Debian/Ubuntu):
