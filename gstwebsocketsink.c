@@ -58,12 +58,23 @@ static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE(
     "sink", GST_PAD_SINK, GST_PAD_ALWAYS, GST_STATIC_CAPS_ANY);
 
+typedef struct {
+    uint8_t *data;
+    size_t length;
+} QueuedMessage;
+
 typedef struct
 {
     struct lws_context *context;
     struct lws_vhost *vhost;
     GList *clients;
     GMutex clients_lock;
+
+    GQueue *send_queue;
+    GMutex send_mutex;
+    GCond send_cond;
+    gboolean waiting_for_send;
+    gboolean connection_closed;
 } WSContext;
 
 typedef struct _GstWebSocketSink
@@ -205,6 +216,28 @@ static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
     GstWebSocketSinkClient *client = user;
     switch (reason)
     {
+      case LWS_CALLBACK_SERVER_WRITEABLE: {
+            g_mutex_lock(&client->sink->ws_context.send_mutex);
+
+            if (!g_queue_is_empty(client->sink->ws_context.send_queue)) {
+                QueuedMessage *msg = g_queue_pop_head(client->sink->ws_context.send_queue);
+
+                // Allocate with LWS_PRE padding
+                unsigned char *buf = g_malloc(LWS_PRE + msg->length);
+                memcpy(buf + LWS_PRE, msg->data, msg->length);
+
+                int written = lws_write(wsi, buf + LWS_PRE, msg->length, LWS_WRITE_BINARY);
+                g_free(buf);
+                g_free(msg->data);
+                g_free(msg);
+
+                client->sink->ws_context.waiting_for_send = FALSE;
+                g_cond_signal(&client->sink->ws_context.send_cond);
+            }
+
+            g_mutex_unlock(&client->sink->ws_context.send_mutex);
+            break;
+        }
         case LWS_CALLBACK_ESTABLISHED: {
             struct lws_context *context = lws_get_context(wsi);
             if (!context)
@@ -257,6 +290,27 @@ static int ws_callback(struct lws *wsi, enum lws_callback_reasons reason,
     }
 
     return 0;
+}
+
+GstFlowReturn ws_send_data(GstWebSocketSinkClient *client, struct lws *wsi, const uint8_t *data, size_t length) {
+    QueuedMessage *msg = g_new(QueuedMessage, 1);
+    msg->data = g_memdup2(data,   length);
+    msg->length = length;
+
+    g_mutex_lock(&client->sink->ws_context.send_mutex);
+    g_queue_push_tail(client->sink->ws_context.send_queue, msg);
+    client->sink->ws_context.waiting_for_send = TRUE;
+
+    lws_callback_on_writable(wsi);
+
+    while (client->sink->ws_context.waiting_for_send && !client->sink->ws_context.connection_closed) {
+        g_cond_wait(&client->sink->ws_context.send_cond, &client->sink->ws_context.send_mutex);
+    }
+
+    gboolean success = !client->sink->ws_context.connection_closed;
+    g_mutex_unlock(&client->sink->ws_context.send_mutex);
+
+    return success ? GST_FLOW_OK : GST_FLOW_ERROR;
 }
 
 /******************************************************************************
@@ -349,11 +403,24 @@ static GstFlowReturn gst_websocket_sink_render(GstBaseSink *bsink,
     {
         GstWebSocketSinkClient *client = iter->data;
 
-        // TODO: Consider moving this to heap
-        unsigned char buf[LWS_PRE + map.size];
+        GstFlowReturn ret = ws_send_data(client, 
+                                         client->wsi,
+                                         (const uint8_t *)map.data,
+                                         map.size);
+        if (ret != GST_FLOW_OK)
+        {
+            GST_WARNING("Failed to send WebSocket data");
+        }
+        // // TODO: Consider moving this to heap
+        // unsigned char buf[LWS_PRE + map.size];
 
-        memcpy(buf + LWS_PRE, map.data, map.size);
-        lws_write(client->wsi, buf + LWS_PRE, map.size, LWS_WRITE_BINARY);
+        // memcpy(buf + LWS_PRE, map.data, map.size);
+
+        // GST_INFO("Send data size: %lu", map.size);
+        // int m = lws_write(client->wsi, buf + LWS_PRE, map.size, LWS_WRITE_BINARY);
+        // if (m < map.size) {
+        //   GST_ERROR("Error %d writing to ws socket", m);
+        // }
     }
 
     g_mutex_unlock(&sink->ws_context.clients_lock);
