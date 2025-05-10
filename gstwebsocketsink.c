@@ -90,10 +90,20 @@ typedef struct _GstWebSocketSinkClass
 #define GST_IS_WEBSOCKET_SINK_CLASS(klass) \
     (G_TYPE_CHECK_CLASS_TYPE((klass), GST_TYPE_WEBSOCKET_SINK))
 
-static struct lws_protocols protocols[] = {{"gst-websocket-sink",
-                                            websocket_callback,
-                                            sizeof(GstWebSocketSinkClient), 0},
-                                           {NULL, NULL, 0, 0}};
+/* clang-format off */
+
+static struct lws_protocols protocols[] = 
+{
+  {
+    "gst-websocket-sink",
+    websocket_callback,
+    sizeof(GstWebSocketSinkClient), 
+    0
+  },
+  {NULL, NULL, 0, 0}
+};
+
+/* clang-format on */
 
 G_DEFINE_TYPE(GstWebSocketSink, gst_websocket_sink, GST_TYPE_BASE_SINK);
 
@@ -110,7 +120,10 @@ static void gst_websocket_sink_set_property(GObject *object, guint prop_id,
     switch (prop_id)
     {
         case PROP_HOST:
-            g_free(sink->host);
+            if(sink->host)
+            {
+              g_free(sink->host);
+            }
             sink->host = g_value_dup_string(value);
             break;
         case PROP_PORT:
@@ -153,6 +166,11 @@ static gboolean gst_websocket_sink_start(GstBaseSink *bsink)
     info.gid = -1;
     info.uid = -1;
 
+    if(sink->context)
+    {
+      lws_context_destroy(sink->context);
+      sink->context = NULL;
+    }
     sink->context = lws_create_context(&info);
     if (!sink->context)
     {
@@ -160,6 +178,11 @@ static gboolean gst_websocket_sink_start(GstBaseSink *bsink)
         return FALSE;
     }
 
+    if(sink->vhost)
+    {
+       lws_vhost_destroy(sink->vhost);
+       sink->vhost = NULL;
+    }
     sink->vhost = lws_create_vhost(sink->context, &info);
     if (!sink->vhost)
     {
@@ -169,8 +192,7 @@ static gboolean gst_websocket_sink_start(GstBaseSink *bsink)
         return FALSE;
     }
 
-    GST_INFO("WebSocket server started on %s:%d", sink->host,
-                     sink->port);
+    GST_INFO("WebSocket server started on %s:%d", sink->host, sink->port);
     return TRUE;
 }
 
@@ -204,11 +226,15 @@ static GstFlowReturn gst_websocket_sink_render(GstBaseSink *bsink,
         return GST_FLOW_ERROR;
     }
 
+    GST_INFO("Render");
+
     g_mutex_lock(&sink->clients_lock);
 
     for (iter = sink->clients; iter; iter = iter->next)
     {
         GstWebSocketSinkClient *client = iter->data;
+
+        // TODO: Consider moving this to heap
         unsigned char buf[LWS_PRE + map.size];
 
         memcpy(buf + LWS_PRE, map.data, map.size);
@@ -244,7 +270,10 @@ static int websocket_callback(struct lws *wsi, enum lws_callback_reasons reason,
 
         case LWS_CALLBACK_CLOSED: {
             if (!client)
+            {
+                GST_ERROR("Error getting disconnected client");
                 break;
+            }
 
             GstWebSocketSink *sink = client->sink;
             g_mutex_lock(&sink->clients_lock);
