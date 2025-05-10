@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <list>
+#include <memory>
 #include "gst/gstelement.h"
 #include "websocketpp/config/asio_no_tls.hpp"
 #include "websocketpp/server.hpp"
@@ -80,7 +81,7 @@ typedef struct _GstWebSocketSink
 
     GstTask *ws_task;
     GRecMutex ws_task_lock;
-    WSContext *ws_context;
+    std::shared_ptr<WSContext> ws_context;
 } GstWebSocketSink;
 
 typedef struct _GstWebSocketSinkClass
@@ -114,6 +115,18 @@ static void ws_service_thread(GstWebSocketSink *sink)
 
     GST_INFO("Starting Websocket thread");
 
+    if(!sink->ws_context)
+    {
+        GST_ERROR("NULL context");
+        GstElement *parent = GST_ELEMENT_PARENT(sink);
+        if (parent)
+        {
+            GST_ELEMENT_ERROR(parent, STREAM, FAILED,
+                              ("WebSocket requested shutdown"), (NULL));
+        }
+        return;
+    }
+
     try
     {
         sink->ws_context->ws_endpoint.listen(boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string(sink->host), sink->port));
@@ -125,7 +138,6 @@ static void ws_service_thread(GstWebSocketSink *sink)
         GstElement *parent = GST_ELEMENT_PARENT(sink);
         if (parent)
         {
-            // This will post an error message to the bus
             GST_ELEMENT_ERROR(parent, STREAM, FAILED,
                               ("WebSocket requested shutdown"), (NULL));
         }
@@ -151,7 +163,7 @@ static void ws_service_thread(GstWebSocketSink *sink)
     GST_INFO("Exiting Websocket thread");
 }
 
-static bool ws_initialise(WSContext *ws_context, GstWebSocketSink *sink)
+static bool ws_initialise(std::shared_ptr<WSContext> ws_context, GstWebSocketSink *sink)
 {
     GST_INFO("Websocket initialise");
     if (!ws_context)
@@ -217,7 +229,7 @@ static GstFlowReturn ws_send_data(GstWebSocketSink *sink, const uint8_t *data, s
     return GST_FLOW_OK;
 }
 
-static void ws_stop_server(WSContext *ctx)
+static void ws_stop_server(std::shared_ptr<WSContext> ctx)
 {
     try
     {
@@ -342,12 +354,6 @@ static void gst_websocket_sink_finalize(GObject *object)
     g_free(sink->host);
     g_rec_mutex_clear(&sink->ws_task_lock);
 
-    if(sink->ws_context)
-    {
-        delete sink->ws_context;
-    }
-    sink->ws_context = NULL;
-
     G_OBJECT_CLASS(gst_websocket_sink_parent_class)->finalize(object);
 }
 
@@ -448,7 +454,10 @@ static void gst_websocket_sink_init(GstWebSocketSink *sink)
 
     try
     {
-        sink->ws_context = new WSContext();
+        if(!sink->ws_context)
+        {
+            sink->ws_context = std::make_shared<WSContext>();
+        }
         sink->ws_context->should_stop = false;
     }
     catch (websocketpp::exception const &e)
