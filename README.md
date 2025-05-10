@@ -9,7 +9,7 @@ It accepts any data format (video, audio, or raw data). It was designed to send 
 Make sure you have all required dependencies installed (Example for Linux Debian/Ubuntu):
 
 ```bash
-sudo apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libwebsockets-dev cmake
+sudo apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libboost-system-dev cmake
 ```
 
 ## Build from Source
