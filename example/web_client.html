@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GStreamer WebSocket Client</title>
+</head>
+<body>
+    <h1>Stream</h1>
+    <video id="video" width="1024" height="768" controls autoplay></video>
+    <script>
+        let ws = null;
+
+        function connect(){
+            const video = document.getElementById('video');
+            ws = new WebSocket('ws://localhost:8080');
+            
+            ws.binaryType = 'arraybuffer';
+            
+            ws.onmessage = function(event) {
+                const blob = new Blob([event.data], {type: 'video/webm'});
+                const url = URL.createObjectURL(blob);
+                video.src = url;
+            };
+            ws.onopen = function() {
+                console.info("WebSocket connected");
+            }
+            ws.onclose = function() {
+                console.info("WebSocket closed");
+            }
+            ws.onerror = function(error) {
+                console.error("WebSocket error:", error);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            connect();
+        });
+
+        window.addEventListener("beforeunload", () => {
+            if (ws) {
+                ws.close(1000, "Page unloading");
+            }
+        });
+
+    </script>
+</body>
+</html>
