@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 project(gstwebsocketsink C CXX)
 
+if(NOT DEFINED BIN_LIB_DESTINATION_FOLDER)
+    set(BIN_LIB_DESTINATION_FOLDER  ${CMAKE_INSTALL_LIBDIR}/gstreamer-1.0)
+endif()
+
+message("BIN_LIB_DESTINATION_FOLDER=${BIN_LIB_DESTINATION_FOLDER}")
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0 gstreamer-base-1.0)
 
@@ -52,5 +58,5 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 )
 
 install(TARGETS ${PROJECT_NAME}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/gstreamer-1.0
+    LIBRARY DESTINATION "${BIN_LIB_DESTINATION_FOLDER}"
 )
