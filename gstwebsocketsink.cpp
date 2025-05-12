@@ -485,5 +485,5 @@ static gboolean plugin_init(GstPlugin *plugin)
  ******************************************************************************/
 
 GST_PLUGIN_DEFINE(GST_VERSION_MAJOR, GST_VERSION_MINOR, websocketsink,
-                  "WebSocket Sink", plugin_init, VERSION, "MIT", PACKAGE_NAME,
+                  "WebSocket Sink", plugin_init, VERSION, "MIT/X11", PACKAGE_NAME,
                   GST_PACKAGE_ORIGIN)
