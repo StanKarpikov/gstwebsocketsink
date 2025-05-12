@@ -129,6 +129,7 @@ static void ws_service_thread(GstWebSocketSink *sink)
 
     try
     {
+        sink->ws_context->ws_endpoint.set_reuse_addr(true);
         sink->ws_context->ws_endpoint.listen(boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string(sink->host), sink->port));
         sink->ws_context->ws_endpoint.start_accept();
     }

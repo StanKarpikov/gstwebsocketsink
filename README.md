@@ -27,8 +27,23 @@ cmake --build .
 # If you want to install it system-wide
 sudo make install
 
-# Or if you want to use the library from the build folder
+# Or if you want to use the library from the build folder, run this before using GStreamer:
 export GST_PLUGIN_PATH="$(pwd)"
+
+## Or the installation folder can be configured using the BIN_LIB_DESTINATION_FOLDER parameter, like this: 
+#
+# cd build
+# cmake -DBIN_LIB_DESTINATION_FOLDER="/custom/path/to/lib" ..
+#
+## However the websocketpp will still be installed to the default folder if you set OVERRIDE_INSTALLATION_DIR_OF_WEBSOCKETPP to OFF.
+## Use this in a parent CMakeLists.txt
+#
+# set(OVERRIDE_INSTALLATION_DIR_OF_WEBSOCKETPP OFF CACHE BOOL "" FORCE)
+#
+## or use this during CMake configuration:
+# 
+# cmake -DOVERRIDE_INSTALLATION_DIR_OF_WEBSOCKETPP=ON ..
+#
 ```
 
 ## Example
