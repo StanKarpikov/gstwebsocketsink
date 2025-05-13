@@ -46,7 +46,7 @@ if(OVERRIDE_INSTALLATION_DIR_OF_WEBSOCKETPP)
 endif()
 
 FetchContent_MakeAvailable(websocketpp)
-add_subdirectory(${websocketpp_SOURCE_DIR} ${CMAKE_BINARY_DIR}/websocketpp)
+add_subdirectory(${websocketpp_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/websocketpp)
 
 if(OVERRIDE_INSTALLATION_DIR_OF_WEBSOCKETPP)
     # Restore the path

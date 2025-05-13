@@ -57,12 +57,6 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE(
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef std::weak_ptr<void> connection_hdl;
 
-typedef struct
-{
-    uint8_t *data;
-    size_t length;
-} QueuedMessage;
-
 struct WSContext
 {
     std::list<connection_hdl> connections;
