@@ -10,6 +10,8 @@
 #include <list>
 #include <memory>
 #include "gst/gstelement.h"
+#include "gst/gstinfo.h"
+#include "gst/gsttask.h"
 #include "websocketpp/config/asio_no_tls.hpp"
 #include "websocketpp/server.hpp"
 
@@ -116,7 +118,7 @@ static void ws_service_thread(GstWebSocketSink *sink)
         if (parent)
         {
             GST_ELEMENT_ERROR(parent, STREAM, FAILED,
-                              ("WebSocket requested shutdown"), (NULL));
+                              ("WebSocket requested shutdown, NULL"), (NULL));
         }
         return;
     }
@@ -134,7 +136,7 @@ static void ws_service_thread(GstWebSocketSink *sink)
         if (parent)
         {
             GST_ELEMENT_ERROR(parent, STREAM, FAILED,
-                              ("WebSocket requested shutdown"), (NULL));
+                              ("WebSocket requested shutdown: %s", e.what()), (NULL));
         }
         return;
     }
@@ -297,17 +299,45 @@ static void gst_websocket_sink_get_property(GObject *object, guint prop_id,
     }
 }
 
+static void stop_websocket_task(GstWebSocketSink *sink)
+{
+    if (sink->ws_task)
+    {
+        GST_INFO("Attempting to stop the Websocket thread...");
+        ws_stop_server(sink->ws_context);
+        gst_task_stop(sink->ws_task);
+        gst_task_join(sink->ws_task);
+        gst_object_unref(sink->ws_task);
+        sink->ws_task = NULL;
+        g_rec_mutex_clear(&sink->ws_task_lock);
+    }
+}
+
 static gboolean gst_websocket_sink_start(GstBaseSink *bsink)
 {
     GstWebSocketSink *sink = GST_WEBSOCKET_SINK(bsink);
-    return ws_initialise(sink->ws_context, sink);
+    if(sink->ws_task)
+    {
+        gboolean result = ws_initialise(sink->ws_context, sink);
+        if(result)
+        {
+            gst_task_start(sink->ws_task);
+        }
+        return result;
+    }
+    else
+    {
+        GST_ERROR("Task was not created");
+        return false;
+    }
+    
 }
 
 static gboolean gst_websocket_sink_stop(GstBaseSink *bsink)
 {
     GstWebSocketSink *sink = GST_WEBSOCKET_SINK(bsink);
 
-    ws_stop_server(sink->ws_context);
+    stop_websocket_task(sink);
 
     return TRUE;
 }
@@ -340,69 +370,10 @@ static void gst_websocket_sink_finalize(GObject *object)
 {
     GstWebSocketSink *sink = GST_WEBSOCKET_SINK(object);
 
-    if (sink->ws_task)
-    {
-        ws_stop_server(sink->ws_context);
-        gst_task_stop(sink->ws_task);
-        gst_object_unref(sink->ws_task);
-    }
+    stop_websocket_task(sink);
     g_free(sink->host);
-    g_rec_mutex_clear(&sink->ws_task_lock);
 
     G_OBJECT_CLASS(gst_websocket_sink_parent_class)->finalize(object);
-}
-
-static GstStateChangeReturn
-gst_websocket_sink_change_state(GstElement *element, GstStateChange transition)
-{
-    GstWebSocketSink *sink = GST_WEBSOCKET_SINK(element);
-    GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
-
-    switch (transition)
-    {
-        case GST_STATE_CHANGE_READY_TO_PAUSED:
-            sink->ws_context->should_stop = false;
-            if (!gst_task_start(sink->ws_task))
-            {
-                GST_ERROR_OBJECT(sink, "Failed to start Websocket task");
-                return GST_STATE_CHANGE_FAILURE;
-            }
-            break;
-
-        case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-            /* Task keeps running in PLAYING */
-            break;
-
-        case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-            /* Task keeps running in PAUSED */
-            break;
-
-        case GST_STATE_CHANGE_PAUSED_TO_READY:
-            GST_INFO("Attempting to stop the Websocket thread...");
-            ws_stop_server(sink->ws_context);
-            gst_task_stop(sink->ws_task);
-            gst_task_join(sink->ws_task);
-            break;
-
-        default:
-            break;
-    }
-
-    ret = GST_ELEMENT_CLASS(gst_websocket_sink_parent_class)->change_state(element, transition);
-
-    if (ret == GST_STATE_CHANGE_FAILURE)
-    {
-        /* Ensure task is stopped if state change failed */
-        if (transition == GST_STATE_CHANGE_READY_TO_PAUSED)
-        {
-            GST_INFO("Attempting to stop the Websocket thread...");
-            ws_stop_server(sink->ws_context);
-            gst_task_stop(sink->ws_task);
-            gst_task_join(sink->ws_task);
-        }
-    }
-
-    return ret;
 }
 
 static void gst_websocket_sink_class_init(GstWebSocketSinkClass *klass)
@@ -437,7 +408,6 @@ static void gst_websocket_sink_class_init(GstWebSocketSinkClass *klass)
     gstbasesink_class->start = GST_DEBUG_FUNCPTR(gst_websocket_sink_start);
     gstbasesink_class->stop = GST_DEBUG_FUNCPTR(gst_websocket_sink_stop);
     gstbasesink_class->render = GST_DEBUG_FUNCPTR(gst_websocket_sink_render);
-    gstelement_class->change_state = GST_DEBUG_FUNCPTR(gst_websocket_sink_change_state);
 
     GST_INFO("Init done");
 }
